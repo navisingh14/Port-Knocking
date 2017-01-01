@@ -1,4 +1,4 @@
-Use this only for educational purposes. This is a port knocking technique used to open a connection to a closed port without opening it. 
+Use this only for educational purposes. This is a port knocking technique implemented in Python used to open a connection to a closed port without opening it. 
 
 
 Description- 
