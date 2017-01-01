@@ -1,0 +1,39 @@
+#!/usr/bin/python
+import getopt
+import socket
+import time
+import SocketServer
+import sys
+def main(argv):
+    #reading the first and second argument as configuration file and host (victim's) IP
+    opts,args = getopt.getopt(argv, "d:p")
+    print args, opts
+    HOST=args[1]
+    filename=args[0]
+    conf_file = open(filename,'r')
+    with open(filename) as conf_file:
+        
+        #to remove new line characters based on windows and unix implementation
+        port = [line.strip(' \n\t\r') for line in conf_file]
+
+        #sending knocks to each of the ports read from the configuration file
+        for port_no in port:
+            PORT=int(str(port_no))
+            #using IPv4 and UDP protocol to send packets
+            s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            #connecting to the host (victim) and specifying the port where to knock
+            s.connect((HOST,PORT))
+            s.sendall('ping')
+            #giving server some time to receive and process the packet
+            time.sleep(3)
+            print 'sent to %s' %(PORT)
+            #closing the socket and preparing for the next port knock
+            s.close()
+
+#the function starts from main
+if __name__ == "__main__":
+    #checks if the input argument is in correct order and all the required arguments are provided
+    if len((sys.argv)) < 3:
+        print "usage: python client.py <configuration-file> <destination ip>"
+        sys.exit(0)
+    main(sys.argv[1:])

@@ -1,0 +1,31 @@
+Use this only for educational purposes. This is a port knocking technique used to open a connection to a closed port without opening it. 
+
+
+Description- 
+> Makefile makes backdoor and knocker executable
+> Knocker:
+	>It creates raw sockets to send UDP packets to the victim's machine
+	>The victim's machine is identified by the IP address provided at the commandline argument
+	>A port sequence is read from the configuration file to send the UDP packets in that particular sequence
+	>It closes an already existing raw socket connection before creating another one to send the next packet
+	>The program is explained inline
+
+>Backdoor:
+	>It creates raw sockets to read the incoming packets and also takes care of the endian conversions
+	>After reading the packets, it unpacks them to remove the pad bytes added while packing to maintain alignment and to read the IP and UDP headers
+	>After unpacking the packets, it analyses the IP addresses of the source and the destination port order
+	>It compares them with the configuration file to see if the specific port knocking order has come
+	>It maintains a counter for each of the IPs that send a message to the first port in the configuration file
+	>If a particular IP sends a message in the correct order without any intermediate knocks on other ports, the backdoor fetches a command from a specific server and runs it
+	>The specific parts of the code are explained inline
+
+EDGE CASES TAKEN CARE OF:
+>It can detect the right sequence in one go
+>It can detect the sequence even if it has a repetitive first port
+	> Example: 8484, 8937, 8470, 8484, 9384, 8374
+>If an attacker sends a packet but disconnects before sending the complete packet
+	> 8484, 8937...disconnected
+	>It then again sends the entire packet 8484, 8937, 8470, 8484, 9384, 8374
+	>It will trigger the backdoor
+
+
